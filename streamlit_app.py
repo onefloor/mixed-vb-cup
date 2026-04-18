@@ -7,7 +7,7 @@ import re
 import random
 from datetime import datetime
 
-st.set_page_config(page_title="11隊混排盃賽事網", layout="wide")
+st.set_page_config(page_title="混排盃賽事網", layout="wide")
 
 # --- 1. 基礎設定與可用日期 ---
 GROUPS = {
@@ -64,7 +64,7 @@ if df is None or df.empty or len(df) == 0:
     st.stop()
 
 # --- 4. 側邊欄與選單 ---
-st.sidebar.title("🏐 11隊混排盃")
+st.sidebar.title("🏐 混排盃")
 menu = st.sidebar.radio("功能選單", ["📅 賽程大日曆", "📊 積分排名", "🏆 決賽專區", "📝 更新/安排比賽"])
 
 st.sidebar.divider()
