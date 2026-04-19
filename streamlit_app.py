@@ -9,6 +9,19 @@ from datetime import datetime
 
 st.set_page_config(page_title="114混排盃賽事網", layout="wide")
 
+# 💡 專屬日曆 CSS：強制允許文字多行顯示
+CALENDAR_CSS = """
+.fc-event-main {
+    padding: 3px !important;
+}
+.fc-event-title {
+    white-space: pre-wrap !important; /* 允許換行 */
+    word-wrap: break-word !important;
+    line-height: 1.4 !important;      /* 增加行距讓字體不擁擠 */
+    font-size: 0.95em !important;
+}
+"""
+
 # --- 1. 基礎設定與可用日期 ---
 GROUPS = {
     "第 1 組": ["土木B", "園藝系", "化工", "工海"],
@@ -93,7 +106,6 @@ def sort_match_ids(ids, data_df, reverse_past=False):
     past.sort(key=lambda x: data_df[data_df['ID'] == str(x)]['安排日期'].values[0], reverse=reverse_past)
     return future + unset + past
 
-# 💡 全新排球循環賽計分邏輯 (勝2敗1、局數商、得分商)
 def get_rankings(data):
     rank_list = []
     for gn, teams in GROUPS.items():
@@ -107,15 +119,11 @@ def get_rankings(data):
                 if row['勝隊'] == "尚未比賽" or str(row['勝隊']).strip() == "":
                     continue
                 
-                # 1. 計算勝敗與積分 (勝2分，敗1分)
                 if row['勝隊'] == team:
-                    wins += 1
-                    pts += 2
+                    wins += 1; pts += 2
                 else:
-                    losses += 1
-                    pts += 1
+                    losses += 1; pts += 1
                 
-                # 2. 計算局數
                 res = re.findall(r'\d+', str(row['局數比']))
                 if len(res) == 2:
                     s1, s2 = int(res[0]), int(res[1])
@@ -124,7 +132,6 @@ def get_rankings(data):
                     else:
                         sets_w += s2; sets_l += s1
                 
-                # 3. 計算詳細得分
                 scores = str(row['詳細比分']).split('/')
                 for s in scores:
                     p_res = re.findall(r'\d+', s)
@@ -135,7 +142,6 @@ def get_rankings(data):
                         else:
                             pts_w += p2; pts_l += p1
             
-            # 計算商數 (處理除以零的情況)
             set_ratio = sets_w / sets_l if sets_l > 0 else (float('inf') if sets_w > 0 else 0)
             pt_ratio = pts_w / pts_l if pts_l > 0 else (float('inf') if pts_w > 0 else 0)
             
@@ -145,7 +151,6 @@ def get_rankings(data):
                 "得局": sets_w, "失局": sets_l, "得分": pts_w, "失分": pts_l
             })
             
-    # 嚴格依照排球規則排序：積分 > 局數商 > 得分商
     return pd.DataFrame(rank_list).sort_values(["組別", "積分", "局數商", "得分商"], ascending=[True, False, False, False])
 
 def generate_calendar_events(data_df, mode="match"):
@@ -158,8 +163,9 @@ def generate_calendar_events(data_df, mode="match"):
             if mode == "ref":
                 ref = str(row.get('裁判', '未定'))
                 assigned = (ref != "未定" and ref.strip() != "")
+                # 💡 這裡將格式改為兩行顯示 (使用 \n 換行)
                 events.append({
-                    "title": f"👨‍⚖️ {ref if assigned else '缺裁判'} | {row['對戰']}",
+                    "title": f"👨‍⚖️ {ref if assigned else '缺裁判'}\n🏐 {row['對戰']}",
                     "start": date_iso, "end": date_iso,
                     "backgroundColor": "#8E24AA" if assigned else "#D32F2F"
                 })
@@ -213,7 +219,8 @@ if menu == "📅 賽程大日曆":
         "initialView": "dayGridMonth",
         "locale": "zh-tw",
     }
-    calendar(events=cal_events, options=calendar_options)
+    # 💡 帶入 custom_css 強制換行
+    calendar(events=cal_events, options=calendar_options, custom_css=CALENDAR_CSS)
     
     st.divider()
     st.subheader("📋 詳細賽程與比分清單")
@@ -222,10 +229,12 @@ if menu == "📅 賽程大日曆":
 
 elif menu == "🧑‍⚖️ 裁判班表":
     st.header("🧑‍⚖️ 裁判排班日曆")
-    st.info("💡 管理員截圖區：未指派裁判的場次會以紅色標示。")
-    # 💡 解決日曆渲染空白的問題，加上 Toggle 開關
+    st.info("💡 管理員截圖區：未指派裁判的場次會以紅色標示。事件已設定為自動換行顯示完整資訊！")
+    
     if st.toggle("📅 顯示裁判排班大日曆", value=True):
-        calendar(events=generate_calendar_events(df, mode="ref"), options={"headerToolbar": {"left": "prev,next", "center": "title", "right": "dayGridMonth"}, "locale": "zh-tw", "height": 750, "eventDisplay": "block"})
+        # 💡 帶入 custom_css 強制換行
+        calendar(events=generate_calendar_events(df, mode="ref"), options={"headerToolbar": {"left": "prev,next", "center": "title", "right": "dayGridMonth"}, "locale": "zh-tw", "height": 750, "eventDisplay": "block"}, custom_css=CALENDAR_CSS)
+        
     st.divider()
     st.subheader("📋 裁判班表明細")
     st.dataframe(df[df['安排日期'] != "未定"][["安排日期", "對戰", "裁判"]].sort_values("安排日期"), use_container_width=True, hide_index=True)
@@ -237,7 +246,6 @@ elif menu == "📊 積分排名":
     for idx, gn in enumerate(GROUPS.keys()):
         with cols[idx]:
             st.markdown(f"#### 🏆 {gn}")
-            # 💡 精簡版視圖：顯示新版計分與商數
             group_df = rank_df[rank_df['組別'] == gn][["隊伍", "積分", "勝場", "敗場", "局數商", "得分商"]].reset_index(drop=True)
             group_df.index = group_df.index + 1
             st.dataframe(group_df, use_container_width=True)
@@ -366,7 +374,8 @@ elif menu == "📝 更新/安排比賽":
         with tab_schedule:
             st.markdown("#### 修改或設定比賽日期")
             if st.toggle("📅 開啟防衝堂日曆"):
-                calendar(events=generate_calendar_events(df), options={"headerToolbar": {"left": "prev,next", "center": "title", "right": "dayGridMonth"}, "locale": "zh-tw", "height": 400})
+                # 💡 帶入 custom_css 強制換行
+                calendar(events=generate_calendar_events(df), options={"headerToolbar": {"left": "prev,next", "center": "title", "right": "dayGridMonth"}, "locale": "zh-tw", "height": 400}, custom_css=CALENDAR_CSS)
             
             mode = st.radio("賽事篩選", ["未排定", "已排定"], horizontal=True, key="sch_mode")
             ids = df[df['安排日期'] == "未定"]['ID'].tolist() if mode == "未排定" else df[df['安排日期'] != "未定"]['ID'].tolist()
@@ -407,7 +416,8 @@ elif menu == "📝 更新/安排比賽":
             st.markdown("#### 指派比賽裁判")
             st.write("📅 **當前裁判排班狀況：**")
             if st.toggle("顯示裁判排班小日曆", value=True):
-                calendar(events=generate_calendar_events(df, mode="ref"), options={"headerToolbar": {"left": "prev,next", "center": "title", "right": "dayGridMonth"}, "locale": "zh-tw", "height": 400})
+                # 💡 帶入 custom_css 強制換行
+                calendar(events=generate_calendar_events(df, mode="ref"), options={"headerToolbar": {"left": "prev,next", "center": "title", "right": "dayGridMonth"}, "locale": "zh-tw", "height": 400}, custom_css=CALENDAR_CSS)
             st.divider()
             
             ref_ids = df[df['安排日期'] != "未定"]['ID'].tolist()
