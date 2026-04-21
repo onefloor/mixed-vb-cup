@@ -320,7 +320,7 @@ elif menu == "🏆 決賽專區":
         </script>
         <div class="mermaid" style="display: flex; justify-content: center; align-items: center;">{placeholder_mermaid}</div>
         """
-        components.html(html_ph, height=450)
+        components.html(html_ph, height=600)
 
     else:
         st.subheader("🔥 淘汰賽對戰圖")
@@ -366,7 +366,7 @@ elif menu == "🏆 決賽專區":
         </script>
         <div class="mermaid" style="display: flex; justify-content: center; align-items: center;">{mermaid_code}</div>
         """
-        components.html(html_code, height=450)
+        components.html(html_code, height=600)
         
         st.divider()
         st.markdown("#### 🥉 季軍戰")
