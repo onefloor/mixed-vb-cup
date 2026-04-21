@@ -9,15 +9,15 @@ from datetime import datetime
 
 st.set_page_config(page_title="114混排盃賽事網", layout="wide")
 
-# 💡 專屬日曆 CSS：強制允許文字多行顯示
+# 💡 專屬日曆 CSS：強制允許文字自動折行多行顯示
 CALENDAR_CSS = """
 .fc-event-main {
     padding: 3px !important;
 }
 .fc-event-title {
-    white-space: pre-wrap !important; /* 允許換行 */
+    white-space: pre-wrap !important; /* 💡 允許文字換行 */
     word-wrap: break-word !important;
-    line-height: 1.4 !important;      /* 增加行距讓字體不擁擠 */
+    line-height: 1.4 !important;      /* 增加行距，確保文字不會擁擠 */
     font-size: 0.95em !important;
 }
 """
@@ -77,15 +77,19 @@ if df is None or df.empty or len(df) == 0:
 if '裁判' not in df.columns:
     df['裁判'] = "未定"
 
-# --- 4. 側邊欄與動態選單 ---
+# --- 4. 側邊欄與動態隱藏選單 ---
 st.sidebar.title("🏐 114混排盃")
+
+# 💡 密碼移到最上面，用來控制選單顯示
 admin_pw = st.sidebar.text_input("🔒 管理員登入", type="password", placeholder="一般球員請忽略")
 is_admin = (admin_pw == st.secrets["manage"]["password"])
 st.sidebar.divider()
 
+# 💡 動態產生選單選項
 menu_options = ["📅 賽程大日曆", "📊 積分排名", "🏆 決賽專區", "📝 更新/安排比賽"]
 if is_admin:
-    menu_options.insert(1, "🧑‍⚖️ 裁判班表") 
+    menu_options.insert(1, "🧑‍⚖️ 裁判班表") # 💡 只有管理員才看得到
+
 menu = st.sidebar.radio("功能選單", menu_options)
 
 # --- 共用邏輯函數 ---
@@ -163,7 +167,6 @@ def generate_calendar_events(data_df, mode="match"):
             if mode == "ref":
                 ref = str(row.get('裁判', '未定'))
                 assigned = (ref != "未定" and ref.strip() != "")
-                # 💡 這裡將格式改為兩行顯示 (使用 \n 換行)
                 events.append({
                     "title": f"👨‍⚖️ {ref if assigned else '缺裁判'}\n🏐 {row['對戰']}",
                     "start": date_iso, "end": date_iso,
@@ -219,7 +222,6 @@ if menu == "📅 賽程大日曆":
         "initialView": "dayGridMonth",
         "locale": "zh-tw",
     }
-    # 💡 帶入 custom_css 強制換行
     calendar(events=cal_events, options=calendar_options, custom_css=CALENDAR_CSS)
     
     st.divider()
@@ -229,10 +231,9 @@ if menu == "📅 賽程大日曆":
 
 elif menu == "🧑‍⚖️ 裁判班表":
     st.header("🧑‍⚖️ 裁判排班日曆")
-    st.info("💡 管理員截圖區：未指派裁判的場次會以紅色標示。事件已設定為自動換行顯示完整資訊！")
+    st.info("💡 管理員截圖區：未指派裁判的場次會以紅色標示。對戰事件已強制自動折行！")
     
-    if st.toggle("📅 顯示裁判排班大日曆", value=True):
-        # 💡 帶入 custom_css 強制換行
+    if st.toggle("顯示裁判排班大日曆", value=True):
         calendar(events=generate_calendar_events(df, mode="ref"), options={"headerToolbar": {"left": "prev,next", "center": "title", "right": "dayGridMonth"}, "locale": "zh-tw", "height": 750, "eventDisplay": "block"}, custom_css=CALENDAR_CSS)
         
     st.divider()
@@ -241,6 +242,7 @@ elif menu == "🧑‍⚖️ 裁判班表":
 
 elif menu == "📊 積分排名":
     st.header("📊 預賽戰績排名")
+    
     rank_df = get_rankings(df)
     cols = st.columns(3)
     for idx, gn in enumerate(GROUPS.keys()):
@@ -259,34 +261,24 @@ elif menu == "🏆 決賽專區":
     prelims = df[pd.to_numeric(df['ID'], errors='coerce') < 18]
     prelim_done = ("尚未比賽" not in prelims['勝隊'].values) and (len(prelims) == 18)
     
-    if not prelim_done:
-        st.info("ℹ️ 預賽尚未全部打完，決賽名單稍後公佈！")
-        cols = st.columns(3)
-        for idx, gn in enumerate(GROUPS.keys()):
-            with cols[idx]:
-                top2 = rank_df[rank_df['組別'] == gn]['隊伍'].head(2).tolist()
-                st.write(f"**{gn} 領先**：\n1. {top2[0] if len(top2)>0 else ''}\n2. {top2[1] if len(top2)>1 else ''}")
-    else:
-        first_places = []
-        second_places = []
-        cols = st.columns(3)
-        for idx, gn in enumerate(GROUPS.keys()):
-            with cols[idx]:
-                top2 = rank_df[rank_df['組別'] == gn]['隊伍'].head(2).tolist()
-                if len(top2) > 0: first_places.append(top2[0])
-                if len(top2) > 1: second_places.append(top2[1])
-                st.write(f"**{gn} 晉級**：\n1. {top2[0]}\n2. {top2[1]}")
-                
-        st.divider()
-        finals_df = df[pd.to_numeric(df['ID'], errors='coerce') >= 18]
-        
-        if finals_df.empty:
-            st.warning("⚠️ 淘汰賽賽程尚未生成。")
+    finals_df = df[pd.to_numeric(df['ID'], errors='coerce') >= 18]
+
+    if finals_df.empty:
+        if not prelim_done:
+            st.info("ℹ️ 預賽尚未全部打完，晉級名單將依照以下預賽分組產生：")
+            cols = st.columns(3)
+            for idx, gn in enumerate(GROUPS.keys()):
+                with cols[idx]:
+                    top2 = rank_df[rank_df['組別'] == gn]['隊伍'].head(2).tolist()
+                    st.write(f"**{gn} 領先**：\n1. {top2[0] if len(top2)>0 else ''}\n2. {top2[1] if len(top2)>1 else ''}")
+        else:
+            st.success("🎉 預賽已全數完賽！請管理員進行決賽抽籤並生成賽程。")
             if is_admin:
                 if st.button("🎲 進行決賽抽籤並生成賽程 (各組第一名優先抽種子)", use_container_width=True):
+                    first_places = [rank_df[rank_df['組別'] == gn]['隊伍'].iloc[0] for gn in GROUPS.keys()]
+                    second_places = [rank_df[rank_df['組別'] == gn]['隊伍'].iloc[1] for gn in GROUPS.keys()]
                     random.shuffle(first_places)
-                    seed1 = first_places[0]
-                    seed2 = first_places[1]
+                    seed1, seed2 = first_places[0], first_places[1]
                     qf_pool = [first_places[2]] + second_places
                     random.shuffle(qf_pool)
                     qf_team1, qf_team2, qf_team3, qf_team4 = qf_pool
@@ -302,67 +294,89 @@ elif menu == "🏆 決賽專區":
                     df = pd.concat([df, pd.DataFrame(new_matches)], ignore_index=True)
                     conn.update(data=df)
                     st.cache_data.clear()
-                    st.success("✅ 決賽賽程已生成完畢！請至管理員面板排定時間與裁判。")
                     st.rerun()
-            else:
-                st.info("請等待管理員進行抽籤與賽程排定。")
-        else:
-            st.subheader("🔥 淘汰賽對戰圖")
-            def get_node(m_id):
-                m = finals_df[finals_df['ID'] == str(m_id)]
-                if m.empty: return "尚未產生"
-                r = m.iloc[0]
-                match_name = str(r['對戰']).replace('"', "'")
-                date_str = str(r['安排日期']).split('(')[0] if r['安排日期'] != "未定" else "To Be Played"
-                ref_text = f"Ref: {r['裁判']}" if str(r.get('裁判', '未定')) != "未定" else ""
-                winner = str(r['勝隊'])
-                win_text = f"Winner: {winner}" if winner not in ["尚未比賽", ""] else ""
-                info_parts = [match_name, date_str]
-                if ref_text: info_parts.append(ref_text)
-                if win_text: info_parts.append(win_text)
-                return "<br/>".join(info_parts)
 
-            qf1_node = get_node(18)
-            qf2_node = get_node(19)
-            sf1_node = get_node(20)
-            sf2_node = get_node(21)
-            f_node = get_node(23)
+        st.divider()
+        st.subheader("🔥 決賽預覽結構圖 (未抽籤)")
+        placeholder_mermaid = """
+        graph LR
+        classDef default fill:#2b2b2b,stroke:#555,stroke-width:1px,color:#fff,rx:5px,ry:5px;
+        S1["分組第一名<br>(抽籤決定種子)"] --> SF1["四強賽 (SF1)"]
+        Q1["分組晉級隊伍<br>(依抽籤決定)"] --> QF1["六強賽 (QF1)"]
+        Q2["分組晉級隊伍<br>(依抽籤決定)"] --> QF1
+        QF1 --> SF1
+        Q3["分組晉級隊伍<br>(依抽籤決定)"] --> QF2["六強賽 (QF2)"]
+        Q4["分組晉級隊伍<br>(依抽籤決定)"] --> QF2
+        QF2 --> SF2["四強賽 (SF2)"]
+        S2["分組第一名<br>(抽籤決定種子)"] --> SF2
+        SF1 --> F["🏆 冠軍賽"]
+        SF2 --> F
+        """
+        html_ph = f"""
+        <style>body {{ background-color: #0e1117; color: white; margin: 0; }}</style>
+        <script type="module">
+            import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+            mermaid.initialize({{ startOnLoad: true, theme: 'dark', flowchart: {{ curve: 'stepAfter' }} }});
+        </script>
+        <div class="mermaid" style="display: flex; justify-content: center; align-items: center;">{placeholder_mermaid}</div>
+        """
+        components.html(html_ph, height=450)
 
-            sf1_match = finals_df[finals_df['ID'] == "20"]
-            seed1 = sf1_match.iloc[0]['T1'].replace('"', "'") if not sf1_match.empty else "Seed 1"
-            sf2_match = finals_df[finals_df['ID'] == "21"]
-            seed2 = sf2_match.iloc[0]['T1'].replace('"', "'") if not sf2_match.empty else "Seed 2"
+    else:
+        st.subheader("🔥 淘汰賽對戰圖")
+        def get_node(m_id):
+            m = finals_df[finals_df['ID'] == str(m_id)]
+            if m.empty: return "尚未產生"
+            r = m.iloc[0]
+            match_name = str(r['對戰']).replace('"', "'")
+            date_str = str(r['安排日期']).split('(')[0] if r['安排日期'] != "未定" else "To Be Played"
+            ref_text = f"Ref: {r['裁判']}" if str(r.get('裁判', '未定')) != "未定" else ""
+            winner = str(r['勝隊'])
+            win_text = f"Winner: {winner}" if winner not in ["尚未比賽", ""] else ""
+            info_parts = [match_name, date_str]
+            if ref_text: info_parts.append(ref_text)
+            if win_text: info_parts.append(win_text)
+            return "<br/>".join(info_parts)
 
-            mermaid_code = f"""
-            graph LR
-            classDef default fill:#2b2b2b,stroke:#555,stroke-width:1px,color:#fff,rx:5px,ry:5px;
-            S1["{seed1}"] --> SF1["{sf1_node}"]
-            QF1["{qf1_node}"] --> SF1
-            QF2["{qf2_node}"] --> SF2["{sf2_node}"]
-            S2["{seed2}"] --> SF2
-            SF1 --> F["{f_node}"]
-            SF2 --> F
-            """
+        qf1_node = get_node(18); qf2_node = get_node(19)
+        sf1_node = get_node(20); sf2_node = get_node(21)
+        f_node = get_node(23)
 
-            html_code = f"""
-            <style>body {{ background-color: #0e1117; color: white; font-family: sans-serif; margin: 0; }}</style>
-            <script type="module">
-                import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
-                mermaid.initialize({{ startOnLoad: true, theme: 'dark', flowchart: {{ curve: 'stepAfter' }} }});
-            </script>
-            <div class="mermaid" style="display: flex; justify-content: center; align-items: center;">{mermaid_code}</div>
-            """
-            components.html(html_code, height=450)
-            
-            st.divider()
-            st.markdown("#### 🥉 季軍戰")
-            th_m = finals_df[finals_df['ID'] == "22"]
-            if not th_m.empty:
-                r = th_m.iloc[0]
-                th_date = str(r['安排日期']) if r['安排日期'] != "未定" else "To Be Played"
-                th_ref = f"| 裁判: {r['裁判']}" if str(r.get('裁判', '未定')) != "未定" else ""
-                th_win = f"| Winner: {r['勝隊']}" if r['勝隊'] not in ["尚未比賽", ""] else ""
-                st.info(f"**{r['對戰']}** | 日期: {th_date} {th_ref} {th_win}")
+        sf1_match = finals_df[finals_df['ID'] == "20"]
+        seed1 = sf1_match.iloc[0]['T1'].replace('"', "'") if not sf1_match.empty else "Seed 1"
+        sf2_match = finals_df[finals_df['ID'] == "21"]
+        seed2 = sf2_match.iloc[0]['T1'].replace('"', "'") if not sf2_match.empty else "Seed 2"
+
+        mermaid_code = f"""
+        graph LR
+        classDef default fill:#2b2b2b,stroke:#555,stroke-width:1px,color:#fff,rx:5px,ry:5px;
+        S1["{seed1}"] --> SF1["{sf1_node}"]
+        QF1["{qf1_node}"] --> SF1
+        QF2["{qf2_node}"] --> SF2["{sf2_node}"]
+        S2["{seed2}"] --> SF2
+        SF1 --> F["{f_node}"]
+        SF2 --> F
+        """
+
+        html_code = f"""
+        <style>body {{ background-color: #0e1117; color: white; font-family: sans-serif; margin: 0; }}</style>
+        <script type="module">
+            import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+            mermaid.initialize({{ startOnLoad: true, theme: 'dark', flowchart: {{ curve: 'stepAfter' }} }});
+        </script>
+        <div class="mermaid" style="display: flex; justify-content: center; align-items: center;">{mermaid_code}</div>
+        """
+        components.html(html_code, height=450)
+        
+        st.divider()
+        st.markdown("#### 🥉 季軍戰")
+        th_m = finals_df[finals_df['ID'] == "22"]
+        if not th_m.empty:
+            r = th_m.iloc[0]
+            th_date = str(r['安排日期']) if r['安排日期'] != "未定" else "To Be Played"
+            th_ref = f"| 裁判: {r['裁判']}" if str(r.get('裁判', '未定')) != "未定" else ""
+            th_win = f"| Winner: {r['勝隊']}" if r['勝隊'] not in ["尚未比賽", ""] else ""
+            st.info(f"**{r['對戰']}** | 日期: {th_date} {th_ref} {th_win}")
 
 elif menu == "📝 更新/安排比賽":
     if is_admin:
@@ -374,7 +388,6 @@ elif menu == "📝 更新/安排比賽":
         with tab_schedule:
             st.markdown("#### 修改或設定比賽日期")
             if st.toggle("📅 開啟防衝堂日曆"):
-                # 💡 帶入 custom_css 強制換行
                 calendar(events=generate_calendar_events(df), options={"headerToolbar": {"left": "prev,next", "center": "title", "right": "dayGridMonth"}, "locale": "zh-tw", "height": 400}, custom_css=CALENDAR_CSS)
             
             mode = st.radio("賽事篩選", ["未排定", "已排定"], horizontal=True, key="sch_mode")
@@ -416,7 +429,6 @@ elif menu == "📝 更新/安排比賽":
             st.markdown("#### 指派比賽裁判")
             st.write("📅 **當前裁判排班狀況：**")
             if st.toggle("顯示裁判排班小日曆", value=True):
-                # 💡 帶入 custom_css 強制換行
                 calendar(events=generate_calendar_events(df, mode="ref"), options={"headerToolbar": {"left": "prev,next", "center": "title", "right": "dayGridMonth"}, "locale": "zh-tw", "height": 400}, custom_css=CALENDAR_CSS)
             st.divider()
             
@@ -464,7 +476,7 @@ elif menu == "📝 更新/安排比賽":
                         if ov == "🤖 自動":
                             nums = re.findall(r'\d+', sc)
                             if len(nums) == 2 and int(nums[0])+int(nums[1]) > 0: df.at[idx, '勝隊'] = row['T1'] if int(nums[0]) > int(nums[1]) else row['T2']
-                        else: df.at[idx, '勝隊'] = row['T1'] if ov == row['T1'] else (row['T2'] if ov == row['T2'] else "尚未比賽")
+                        else: df.at[idx, '勝隊'] = ov
                         df = auto_advance_finals(df); conn.update(data=df); st.cache_data.clear(); st.rerun()
 
     else:
