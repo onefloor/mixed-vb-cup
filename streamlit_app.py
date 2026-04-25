@@ -222,7 +222,8 @@ if menu == "📅 賽程大日曆":
         "initialView": "dayGridMonth",
         "locale": "zh-tw",
     }
-    calendar(events=cal_events, options=calendar_options, custom_css=CALENDAR_CSS)
+    # 💡 加上 key="main_cal"
+    calendar(events=cal_events, options=calendar_options, custom_css=CALENDAR_CSS, key="main_cal")
     
     st.divider()
     st.subheader("📋 詳細賽程與比分清單")
@@ -234,7 +235,8 @@ elif menu == "🧑‍⚖️ 裁判班表":
     st.info("💡 管理員截圖區：未指派裁判的場次會以紅色標示。對戰事件已強制自動折行！")
     
     if st.toggle("顯示裁判排班大日曆", value=True):
-        calendar(events=generate_calendar_events(df, mode="ref"), options={"headerToolbar": {"left": "prev,next", "center": "title", "right": "dayGridMonth"}, "locale": "zh-tw", "height": 750, "eventDisplay": "block"}, custom_css=CALENDAR_CSS)
+        # 💡 加上 key="ref_cal"
+        calendar(events=generate_calendar_events(df, mode="ref"), options={"headerToolbar": {"left": "prev,next", "center": "title", "right": "dayGridMonth"}, "locale": "zh-tw", "height": 750, "eventDisplay": "block"}, custom_css=CALENDAR_CSS, key="ref_cal")
         
     st.divider()
     st.subheader("📋 裁判班表明細")
@@ -388,7 +390,8 @@ elif menu == "📝 更新/安排比賽":
         with tab_schedule:
             st.markdown("#### 修改或設定比賽日期")
             if st.toggle("📅 開啟防衝堂日曆"):
-                calendar(events=generate_calendar_events(df), options={"headerToolbar": {"left": "prev,next", "center": "title", "right": "dayGridMonth"}, "locale": "zh-tw", "height": 400}, custom_css=CALENDAR_CSS)
+                # 💡 加上 key="edit_sch_cal"
+                calendar(events=generate_calendar_events(df), options={"headerToolbar": {"left": "prev,next", "center": "title", "right": "dayGridMonth"}, "locale": "zh-tw", "height": 400}, custom_css=CALENDAR_CSS, key="edit_sch_cal")
             
             mode = st.radio("賽事篩選", ["未排定", "已排定"], horizontal=True, key="sch_mode")
             ids = df[df['安排日期'] == "未定"]['ID'].tolist() if mode == "未排定" else df[df['安排日期'] != "未定"]['ID'].tolist()
@@ -429,7 +432,8 @@ elif menu == "📝 更新/安排比賽":
             st.markdown("#### 指派比賽裁判")
             st.write("📅 **當前裁判排班狀況：**")
             if st.toggle("顯示裁判排班小日曆", value=True):
-                calendar(events=generate_calendar_events(df, mode="ref"), options={"headerToolbar": {"left": "prev,next", "center": "title", "right": "dayGridMonth"}, "locale": "zh-tw", "height": 400}, custom_css=CALENDAR_CSS)
+                # 💡 加上 key="edit_ref_cal"
+                calendar(events=generate_calendar_events(df, mode="ref"), options={"headerToolbar": {"left": "prev,next", "center": "title", "right": "dayGridMonth"}, "locale": "zh-tw", "height": 400}, custom_css=CALENDAR_CSS, key="edit_ref_cal")
             st.divider()
             
             ref_ids = df[df['安排日期'] != "未定"]['ID'].tolist()
