@@ -31,7 +31,8 @@ GROUPS = {
 
 CONSTRAINTS = {
     "森林系": [4, 2], "土木B": [4, 2], "土木": [2, 4],
-    "生工/農經聯隊": [1, 4], "園藝系": [3, 4], "藥學系": [4, 2],
+    "生工/農經聯隊": [2, 5], # 💡 已修正為 2, 5
+    "園藝系": [3, 4], "藥學系": [4, 2],
     "工海": [4, 5], "化學系+化學所": [3, 1], "機械系": [4, 1],
     "會計": [2, 5], "化工": [3, 2], "法律系": [4, 2]
 }
@@ -42,16 +43,37 @@ def get_avail(t1, t2):
     avail = [f"週{['0','一','二','三','四','五'][d]}" for d in all_days if d not in forbidden]
     return "、".join(avail) if avail else "需協調"
 
-# --- 2. 讀取資料 ---
+# --- 2. 讀取資料與自動同步 ---
 conn = st.connection("gsheets", type=GSheetsConnection)
 try:
-    df = conn.read(ttl=5)
+    # 縮短 ttl 以確保讀取最新資料，減少並行覆寫機率
+    df = conn.read(ttl=2) 
     df = df.fillna('')
     df = df.astype(str).replace(['nan', 'NaN', 'None'], '')
     if not df.empty and 'ID' in df.columns:
         df['ID'] = df['ID'].apply(lambda x: str(int(float(x))) if x.replace('.','',1).isdigit() else x)
-except Exception:
-    df = pd.DataFrame()
+        
+        # 💡 自動同步最新「可用日期」的機制！
+        needs_update = False
+        for idx, row in df.iterrows():
+            t1, t2 = str(row['T1']), str(row['T2'])
+            # 確保是預賽的正規隊伍名稱（排除決賽尚未產生的佔位符號）
+            if t1 != "尚未產生" and t2 != "尚未產生" and "勝" not in t1 and "敗" not in t1 and "QF" not in t1 and "SF" not in t1 and "Seed" not in t1:
+                correct_avail = get_avail(t1, t2)
+                # 如果 Google Sheets 記的日期跟最新算出來的不一樣，就更新
+                if str(row['可用日期']) != correct_avail:
+                    df.at[idx, '可用日期'] = correct_avail
+                    needs_update = True
+        
+        # 發現有舊資料，自動幫你儲存回 Google Sheets！
+        if needs_update:
+            conn.update(data=df)
+            st.cache_data.clear()
+
+except Exception as e:
+    # 💡 重大修正：遇到連線錯誤時強制停止，絕對不要產生空的 DataFrame 去覆寫資料！
+    st.error(f"🚨 無法讀取資料庫（可能是 Google Sheets 暫時連線異常）。為了保護您的資料不被覆寫，網頁暫停載入。請稍後重新整理網頁！\n\n系統訊息: {e}")
+    st.stop()
 
 # --- 3. 自動初始化 ---
 if df is None or df.empty or len(df) == 0:
