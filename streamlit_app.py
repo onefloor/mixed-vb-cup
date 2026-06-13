@@ -104,7 +104,7 @@ st.sidebar.title("🏐 114混排盃")
 
 # 💡 密碼移到最上面，用來控制選單顯示
 admin_pw = st.sidebar.text_input("🔒 管理員登入", type="password", placeholder="一般球員請忽略")
-is_admin = (admin_pw == st.secrets["manage"]["password"])
+is_admin = (admin_pw == st.secrets.get("manage", {}).get("password", "")) if "manage" in st.secrets else False
 st.sidebar.divider()
 
 # 💡 動態產生選單選項
@@ -234,6 +234,15 @@ def auto_advance_finals(data):
             data.at[idx[0], '可用日期'] = get_avail(t1, t2)
     return data
 
+# 💡 新增：檢查兩支隊伍是否來自同一小組
+def are_same_group(team1, team2):
+    if "勝" in team1 or "勝" in team2 or "SF" in team1 or "SF" in team2 or "尚未產生" in team1 or "尚未產生" in team2:
+        return False
+    for group_teams in GROUPS.values():
+        if team1 in group_teams and team2 in group_teams:
+            return True
+    return False
+
 # --- 5. 頁面內容 ---
 
 if menu == "📅 賽程大日曆":
@@ -298,14 +307,27 @@ elif menu == "🏆 決賽專區":
         else:
             st.success("🎉 預賽已全數完賽！請管理員進行決賽抽籤並生成賽程。")
             if is_admin:
-                if st.button("🎲 進行決賽抽籤並生成賽程 (各組第一名優先抽種子)", use_container_width=True):
+                # 💡 修改：加入自動分組抽籤邏輯
+                if st.button("🎲 進行決賽抽籤並生成賽程 (自動分開同組隊伍)", use_container_width=True):
                     first_places = [rank_df[rank_df['組別'] == gn]['隊伍'].iloc[0] for gn in GROUPS.keys()]
                     second_places = [rank_df[rank_df['組別'] == gn]['隊伍'].iloc[1] for gn in GROUPS.keys()]
-                    random.shuffle(first_places)
-                    seed1, seed2 = first_places[0], first_places[1]
-                    qf_pool = [first_places[2]] + second_places
-                    random.shuffle(qf_pool)
-                    qf_team1, qf_team2, qf_team3, qf_team4 = qf_pool
+                    
+                    max_attempts = 100
+                    for _ in range(max_attempts):
+                        temp_first = first_places.copy()
+                        random.shuffle(temp_first)
+                        seed1, seed2 = temp_first[0], temp_first[1]
+                        
+                        qf_pool = [temp_first[2]] + second_places
+                        random.shuffle(qf_pool)
+                        qf_team1, qf_team4 = qf_pool[0], qf_pool[3]
+                        qf_team2, qf_team3 = qf_pool[1], qf_pool[2]
+                        
+                        # 檢查條件：QF1 的兩隊是否不同組，QF2 的兩隊是否不同組
+                        if not are_same_group(qf_team1, qf_team4) and not are_same_group(qf_team2, qf_team3):
+                            break
+                    else:
+                        st.warning("⚠️ 無法完全避免同組，已使用最後一次隨機結果。")
                     
                     new_matches = [
                         {"ID": "18", "組別": "六強賽 (QF1)", "對戰": f"{qf_team1} vs {qf_team4}", "T1": qf_team1, "T2": qf_team4, "可用日期": get_avail(qf_team1, qf_team4), "安排日期": "未定", "裁判": "未定", "局數比": "0:0", "勝隊": "尚未比賽", "詳細比分": ""},
